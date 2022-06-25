@@ -192,6 +192,9 @@ struct DTLeaf
     inline Int64 getDelta() const
     {
         Int64 delta = 0;
+#ifdef __clang__
+#pragma clang loop vectorize(enable) interleave(enable)
+#endif
         for (size_t i = 0; i < count; ++i)
         {
             const auto & m = mutations[i];
@@ -235,11 +238,23 @@ struct DTLeaf
         return search<isRid>(id, delta).first < count;
     }
 
-    inline std::pair<size_t, Int64> searchRid(const UInt64 id, Int64 delta) const { return search<true>(id, delta); }
-    inline std::pair<size_t, Int64> searchSid(const UInt64 id, Int64 delta) const { return search<false>(id, delta); }
+    inline std::pair<size_t, Int64> searchRid(const UInt64 id, Int64 delta) const
+    {
+        return search<true>(id, delta);
+    }
+    inline std::pair<size_t, Int64> searchSid(const UInt64 id, Int64 delta) const
+    {
+        return search<false>(id, delta);
+    }
 
-    inline bool existsRid(const UInt64 id, Int64 delta) const { return exists<true>(id, delta); }
-    inline bool existsSid(const UInt64 id) const { return exists<false>(id, 0); }
+    inline bool existsRid(const UInt64 id, Int64 delta) const
+    {
+        return exists<true>(id, delta);
+    }
+    inline bool existsSid(const UInt64 id) const
+    {
+        return exists<false>(id, 0);
+    }
 
     /// Split into two nodes.
     /// This mehod only handle the pre/next/parent link, but won't handle the updates in parent node.
@@ -404,6 +419,9 @@ struct DTIntern
     inline Int64 getDelta()
     {
         Int64 delta = 0;
+#ifdef __clang__
+#pragma clang loop vectorize(enable) interleave(enable)
+#endif
         for (size_t i = 0; i < count; ++i)
         {
             delta += deltas[i];
@@ -444,7 +462,10 @@ struct DTIntern
 
     /// Merge this node and the sibling, node_pos is the position of currently node in parent.
     /// Note that sibling should be deleted outside.
-    inline void merge(InternPtr sibling, bool left, size_t node_pos) { adopt(sibling, left, sibling->count, node_pos); }
+    inline void merge(InternPtr sibling, bool left, size_t node_pos)
+    {
+        adopt(sibling, left, sibling->count, node_pos);
+    }
 
     /// Adopt entries from sibling, whether sibling is from left or right are handled in different way.
     /// node_pos is the position of currently node in parent.
@@ -811,6 +832,17 @@ private:
     template <typename T>
     InternPtr afterNodeUpdated(T * node);
 
+#ifdef __aarch64__
+    template <typename T>
+    InternPtr afterNodeUpdatedGeneric(T * node);
+
+    template <typename T>
+    InternPtr afterNodeUpdatedSVE(T * node);
+
+    template <typename T>
+    InternPtr afterNodeUpdatedSVE2(T * node);
+#endif
+
 #ifdef __x86_64__
     template <typename T>
     InternPtr afterNodeUpdatedGeneric(T * node);
@@ -899,8 +931,14 @@ private:
     }
 
 public:
-    DeltaTree() { init(std::make_shared<ValueSpace>()); }
-    explicit DeltaTree(const ValueSpacePtr & insert_value_space_) { init(insert_value_space_); }
+    DeltaTree()
+    {
+        init(std::make_shared<ValueSpace>());
+    }
+    explicit DeltaTree(const ValueSpacePtr & insert_value_space_)
+    {
+        init(insert_value_space_);
+    }
     DeltaTree(const Self & o);
 
     DeltaTree & operator=(const Self & o)
@@ -965,10 +1003,19 @@ public:
         check(root, true);
     }
 
-    size_t getBytes() { return bytes; }
+    size_t getBytes()
+    {
+        return bytes;
+    }
 
-    size_t getHeight() const { return height; }
-    EntryIterator begin() const { return EntryIterator(left_leaf, 0, 0); }
+    size_t getHeight() const
+    {
+        return height;
+    }
+    EntryIterator begin() const
+    {
+        return EntryIterator(left_leaf, 0, 0);
+    }
     EntryIterator end() const
     {
         Int64 delta = isLeaf(root) ? as(Leaf, root)->getDelta() : as(Intern, root)->getDelta();
@@ -982,11 +1029,23 @@ public:
         return std::make_shared<DTEntriesCopy<M, F, S, CopyAllocator>>(left_leaf, num_entries, delta);
     }
 
-    CompactedEntriesPtr getCompactedEntries() { return std::make_shared<CompactedEntries>(begin(), end(), num_entries); }
+    CompactedEntriesPtr getCompactedEntries()
+    {
+        return std::make_shared<CompactedEntries>(begin(), end(), num_entries);
+    }
 
-    size_t numEntries() const { return num_entries; }
-    size_t numInserts() const { return num_inserts; }
-    size_t numDeletes() const { return num_deletes; }
+    size_t numEntries() const
+    {
+        return num_entries;
+    }
+    size_t numInserts() const
+    {
+        return num_inserts;
+    }
+    size_t numDeletes() const
+    {
+        return num_deletes;
+    }
 
     void addDelete(UInt64 rid);
     void addInsert(UInt64 rid, UInt64 tuple_id);
@@ -1363,11 +1422,68 @@ typename DT_CLASS::InterAndSid DT_CLASS::submitMinSid(T * node, UInt64 subtree_m
     }
 }
 
-#ifndef __x86_64__
-#define TIFLASH_DT_IMPL_NAME afterNodeUpdated
+#ifdef __aarch64__
+
+// generic implementation
+#define TIFLASH_DT_IMPL_NAME afterNodeUpdatedGeneric
 #include "DeltaTree.ipp"
 #undef TIFLASH_DT_IMPL_NAME
-#else
+
+// sve implementation
+TIFLASH_BEGIN_SVE_SPECIFIC_CODE
+#define TIFLASH_DT_IMPL_NAME afterNodeUpdatedSVE
+#include "DeltaTree.ipp"
+#undef TIFLASH_DT_IMPL_NAME
+TIFLASH_END_TARGET_SPECIFIC_CODE
+
+// sve2 implementation
+TIFLASH_BEGIN_SVE2_SPECIFIC_CODE
+#define TIFLASH_DT_IMPL_NAME afterNodeUpdatedSVE2
+#include "DeltaTree.ipp"
+#undef TIFLASH_DT_IMPL_NAME
+TIFLASH_END_TARGET_SPECIFIC_CODE
+
+namespace Impl
+{
+enum class DeltaTreeVariant
+{
+    Generic,
+    SVE,
+    SVE2
+};
+
+static inline DeltaTreeVariant resolveDeltaTreeVariant()
+{
+    if (common::cpu_feature_flags.sve2)
+    {
+        return DeltaTreeVariant::SVE2;
+    }
+    if (common::cpu_feature_flags.sve)
+    {
+        return DeltaTreeVariant::SVE;
+    }
+    return DeltaTreeVariant::Generic;
+}
+
+static inline DeltaTreeVariant DELTA_TREE_VARIANT = resolveDeltaTreeVariant();
+} // namespace Impl
+
+DT_TEMPLATE
+template <class T>
+typename DT_CLASS::InternPtr DT_CLASS::afterNodeUpdated(T * node)
+{
+    switch (Impl::DELTA_TREE_VARIANT)
+    {
+    case Impl::DeltaTreeVariant::Generic:
+        return afterNodeUpdatedGeneric(node);
+    case Impl::DeltaTreeVariant::SVE:
+        return afterNodeUpdatedSVE(node);
+    case Impl::DeltaTreeVariant::SVE2:
+        return afterNodeUpdatedSVE2(node);
+    }
+}
+
+#elif defined(__x86_64__)
 
 // generic implementation
 #define TIFLASH_DT_IMPL_NAME afterNodeUpdatedGeneric
@@ -1441,8 +1557,14 @@ typename DT_CLASS::InternPtr DT_CLASS::afterNodeUpdated(T * node)
         return afterNodeUpdatedAVX512(node);
     }
 }
-#endif
 
+#else
+
+#define TIFLASH_DT_IMPL_NAME afterNodeUpdated
+#include "DeltaTree.ipp"
+#undef TIFLASH_DT_IMPL_NAME
+
+#endif
 
 #undef as
 #undef asNode
