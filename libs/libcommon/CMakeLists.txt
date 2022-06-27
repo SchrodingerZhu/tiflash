@@ -79,6 +79,7 @@ add_library (common ${SPLIT_SHARED}
     include/common/crc64_fast.h
     include/common/crc64.h
     include/common/detect_features.h
+    include/common/mutliversioned_vectorization.h
 
     include/ext/bit_cast.h
     include/ext/collection_cast.h

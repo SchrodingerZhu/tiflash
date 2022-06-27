@@ -20,11 +20,15 @@
 namespace DB
 {
 
+struct VersionFilterBlockInputStreamReadTiFlashMultiVersion;
+
 class VersionFilterBlockInputStream : public IProfilingBlockInputStream
 {
 public:
     VersionFilterBlockInputStream(const BlockInputStreamPtr & input_, const size_t version_column_index_, UInt64 filter_greater_version_)
-        : input(input_), version_column_index(version_column_index_), filter_greater_version(filter_greater_version_)
+        : input(input_)
+        , version_column_index(version_column_index_)
+        , filter_greater_version(filter_greater_version_)
     {}
 
 protected:
@@ -45,6 +49,9 @@ private:
     const size_t version_column_index;
     const UInt64 filter_greater_version;
     Poco::Logger * log = &Poco::Logger::get("VersionFilterBlockInputStream");
+    __attribute__((always_inline)) inline Block readInlined();
+
+    friend VersionFilterBlockInputStreamReadTiFlashMultiVersion;
 };
 
 } // namespace DB

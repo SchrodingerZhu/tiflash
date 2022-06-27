@@ -90,6 +90,7 @@ public:
         return read(f, false);
     }
 
+    __attribute__((always_inline)) inline Block readInlined(FilterPtr & res_filter, bool return_filter);
     Block read(FilterPtr & res_filter, bool return_filter) override;
 
     size_t getEffectiveNumRows() const { return effective_num_rows; }
