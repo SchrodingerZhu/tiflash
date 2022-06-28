@@ -20,13 +20,13 @@
 
 namespace detail
 {
-static inline bool sve2_supported()
+static inline bool sve2Supported()
 {
     auto hwcaps = getauxval(AT_HWCAP2);
     return (hwcaps & HWCAP2_SVE2) != 0;
 }
 
-static inline bool sve_supported()
+static inline bool sveSupported()
 {
     auto hwcaps = getauxval(AT_HWCAP);
     return (hwcaps & HWCAP_SVE) != 0;
@@ -41,71 +41,71 @@ static inline bool sve_supported()
 #define TIFLASH_MULTIVERSIONED_VECTORIZATION_X86_64(RETURN, NAME, ARG_LIST, ARG_NAMES, BODY)                                       \
     struct NAME##TiFlashMultiVersion                                                                                               \
     {                                                                                                                              \
-        __attribute__((always_inline)) static inline RETURN inlined_implementation ARG_LIST BODY;                                  \
+        __attribute__((always_inline)) static inline RETURN inlinedImplementation ARG_LIST BODY;                                   \
                                                                                                                                    \
         __attribute__((target("default"))) /* x86-64-v2 is ready on default */                                                     \
-        static RETURN dispatched_implementation ARG_LIST                                                                           \
+        static RETURN dispatchedImplementation ARG_LIST                                                                            \
         {                                                                                                                          \
-            return inlined_implementation ARG_NAMES;                                                                               \
+            return inlinedImplementation ARG_NAMES;                                                                                \
         };                                                                                                                         \
                                                                                                                                    \
         __attribute__((target("avx,avx2,fma,bmi,bmi2"))) /* x86-64-v3 feature flags */                                             \
-        static RETURN dispatched_implementation ARG_LIST                                                                           \
+        static RETURN dispatchedImplementation ARG_LIST                                                                            \
         {                                                                                                                          \
-            return inlined_implementation ARG_NAMES;                                                                               \
+            return inlinedImplementation ARG_NAMES;                                                                                \
         };                                                                                                                         \
                                                                                                                                    \
         __attribute__((target("avx512f,avx512vl,avx512bw,avx512cd,avx512dq,avx,avx2,fma,bmi,bmi2"))) /* x86-64-v4 feature flags */ \
-        static RETURN dispatched_implementation ARG_LIST                                                                           \
+        static RETURN dispatchedImplementation ARG_LIST                                                                            \
         {                                                                                                                          \
-            return inlined_implementation ARG_NAMES;                                                                               \
+            return inlinedImplementation ARG_NAMES;                                                                                \
         };                                                                                                                         \
                                                                                                                                    \
         __attribute__((always_inline)) static inline RETURN invoke ARG_LIST                                                        \
         {                                                                                                                          \
-            return dispatched_implementation ARG_NAMES;                                                                            \
+            return dispatchedImplementation ARG_NAMES;                                                                             \
         };                                                                                                                         \
     };
 
-#define TIFLASH_MULTIVERSIONED_VECTORIZATION_AARCH64(RETURN, NAME, ARG_LIST, ARG_NAMES, BODY)     \
-    struct NAME##TiFlashMultiVersion                                                              \
-    {                                                                                             \
-        __attribute__((always_inline)) static inline RETURN inlined_implementation ARG_LIST BODY; \
-                                                                                                  \
-        static RETURN generic_implementation ARG_LIST                                             \
-        {                                                                                         \
-            return inlined_implementation ARG_NAMES;                                              \
-        };                                                                                        \
-                                                                                                  \
-        __attribute__((target("sve"))) static RETURN sve_implementation ARG_LIST                  \
-        {                                                                                         \
-            return inlined_implementation ARG_NAMES;                                              \
-        };                                                                                        \
-                                                                                                  \
-        __attribute__((target("sve2"))) static RETURN sve2_implementation ARG_LIST                \
-        {                                                                                         \
-            return inlined_implementation ARG_NAMES;                                              \
-        };                                                                                        \
-                                                                                                  \
-        static RETURN dispatched_implementation ARG_LIST                                          \
-            __attribute__((ifunc(TMV_STRINGIFY(__tiflash_mvec_##NAME##_resolver))));              \
-                                                                                                  \
-        __attribute__((always_inline)) static inline RETURN invoke ARG_LIST                       \
-        {                                                                                         \
-            return dispatched_implementation ARG_NAMES;                                           \
-        };                                                                                        \
-    };                                                                                            \
-    extern "C" void * __tiflash_mvec_##NAME##_resolver()                                          \
-    {                                                                                             \
-        if (::detail::sve_supported())                                                            \
-        {                                                                                         \
-            return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::sve_implementation);      \
-        }                                                                                         \
-        if (::detail::sve2_supported())                                                           \
-        {                                                                                         \
-            return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::sve2_implementation);     \
-        }                                                                                         \
-        return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::generic_implementation);      \
+#define TIFLASH_MULTIVERSIONED_VECTORIZATION_AARCH64(RETURN, NAME, ARG_LIST, ARG_NAMES, BODY)    \
+    struct NAME##TiFlashMultiVersion                                                             \
+    {                                                                                            \
+        __attribute__((always_inline)) static inline RETURN inlinedImplementation ARG_LIST BODY; \
+                                                                                                 \
+        static RETURN genericImplementation ARG_LIST                                             \
+        {                                                                                        \
+            return inlinedImplementation ARG_NAMES;                                              \
+        };                                                                                       \
+                                                                                                 \
+        __attribute__((target("sve"))) static RETURN sveImplementation ARG_LIST                  \
+        {                                                                                        \
+            return inlinedImplementation ARG_NAMES;                                              \
+        };                                                                                       \
+                                                                                                 \
+        __attribute__((target("sve2"))) static RETURN sve2Implementation ARG_LIST                \
+        {                                                                                        \
+            return inlinedImplementation ARG_NAMES;                                              \
+        };                                                                                       \
+                                                                                                 \
+        static RETURN dispatchedImplementation ARG_LIST                                          \
+            __attribute__((ifunc(TMV_STRINGIFY(__tiflash_mvec_##NAME##_resolver))));             \
+                                                                                                 \
+        __attribute__((always_inline)) static inline RETURN invoke ARG_LIST                      \
+        {                                                                                        \
+            return dispatchedImplementation ARG_NAMES;                                           \
+        };                                                                                       \
+    };                                                                                           \
+    extern "C" void * __tiflash_mvec_##NAME##_resolver()                                         \
+    {                                                                                            \
+        if (::detail::sveSupported())                                                            \
+        {                                                                                        \
+            return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::sveImplementation);      \
+        }                                                                                        \
+        if (::detail::sve2Supported())                                                           \
+        {                                                                                        \
+            return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::sve2Implementation);     \
+        }                                                                                        \
+        return reinterpret_cast<void *>(&NAME##TiFlashMultiVersion::genericImplementation);      \
     }
 
 #if defined(__linux__) && defined(__aarch64__)
